@@ -1,0 +1,46 @@
+stages:
+  - format
+precommit:
+  stage: format
+  before_script:
+    - |
+      # Install pyenv
+      CFLAGS="-O2"
+      PYENV_ROOT=$HOME/.pyenv
+      if [ ! -d $HOME/.pyenv ]; then
+        /bin/echo "INFO: Clone https://github.com/pyenv/pyenv in $PYENV_ROOT"
+        /usr/bin/git clone https://github.com/pyenv/pyenv $PYENV_ROOT
+      else
+        /bin/echo "INFO: $HOME/.pyenv exist! Upgrading to latest..."
+        cd $PYENV_ROOT && /usr/bin/git checkout master && /usr/bin/git pull origin master && cd - || { echo 'Failed to upgrade pyenv'; exit 1; }
+      fi
+      PATH=$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+      PYENV=$PYENV_ROOT/bin/pyenv
+      eval "$($PYENV init -)"
+      $PYENV install -s
+      # Install virtualenv
+      PYVERSION=$(python -V 2>&1 |sed -rn 's/Python (.*)\..*/\1/p')
+      echo Python version is $PYVERSION
+      VIRTUALENV=$PYENV_ROOT/bin/virtualenv.pyz
+      if [ ! -d $HOME/.venv ]; then
+        /bin/echo "INFO: Download $VIRTUALENV"
+        /usr/bin/wget --no-check-certificate https://bootstrap.pypa.io/virtualenv/$PYVERSION/virtualenv.pyz -O $VIRTUALENV || { echo 'Download of virtualenv package failed' ; exit 1; }
+        /bin/echo "INFO: Build virtual environment in $ODOO_WORK_DIR/.venv"
+        python $VIRTUALENV .venv || { echo 'Virtualenv creation failed' ; exit 1; }
+      else
+        /bin/echo "INFO: $ODOO_WORK_DIR/.venv exist!"
+      fi
+      # Install pre-commit
+      . $HOME/.venv/bin/activate
+      pip install pre-commit
+      which pre-commit
+  script:
+    - |
+      source /home/ubuntu/.venv/bin/activate
+      pre-commit run --all-files
+  only:
+    - merge_requests
+  artifacts:
+    untracked: true
+    expire_in: 1 week
+  allow_failure: false
